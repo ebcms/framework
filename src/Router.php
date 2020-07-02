@@ -1,4 +1,6 @@
-<?php declare (strict_types = 1);
+<?php
+
+declare(strict_types=1);
 
 namespace Ebcms;
 
@@ -32,7 +34,6 @@ class Router
 
     public function buildUrl(string $name, array $param = [], string $method = 'GET'): ?string
     {
-        $res = $this->getCollector()->getBuildData($name, $method);
         $build = function (array $routeData, $param) {
             $uri = '';
             foreach ($routeData as $part) {
@@ -53,12 +54,26 @@ class Router
             }
             return $uri;
         };
-        foreach ($res as $routeData) {
+
+        foreach ($this->getCollector()->getBuildData($name, $method) as $routeData) {
             if (false !== $uri = $build($routeData, $param)) {
                 return $uri;
             }
         }
-        return null;
+
+        static $web_root;
+        if (is_null($web_root)) {
+            $web_root = (function (): string {
+                $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
+                $request_uri = parse_url('/' . implode('/', array_filter(explode('/', $_SERVER['REQUEST_URI']))), PHP_URL_PATH);
+                if (strpos($request_uri, $script_name) === 0) {
+                    return $script_name;
+                } else {
+                    return strlen(dirname($script_name)) > 1 ? dirname($script_name) : '';
+                }
+            })();
+        }
+        return $web_root . $name . ($param ? '?' . http_build_query($param) : '');
     }
 
     public function getCollector(): RouteCollector

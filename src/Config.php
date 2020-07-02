@@ -1,4 +1,7 @@
-<?php declare (strict_types = 1);
+<?php
+
+declare(strict_types=1);
+
 namespace Ebcms;
 
 use InvalidArgumentException;
@@ -118,7 +121,7 @@ class Config
     {
         static $loader;
         if (!$loader) {
-            $loader = new class()
+            $loader = new class ()
             {
                 public function load(string $file)
                 {

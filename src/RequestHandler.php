@@ -1,4 +1,6 @@
-<?php declare (strict_types = 1);
+<?php
+
+declare(strict_types=1);
 
 namespace Ebcms;
 
@@ -105,7 +107,7 @@ class RequestHandler implements RequestHandlerInterface
 
     public function execute(callable $callback, ServerRequestInterface $server_request): ResponseInterface
     {
-        $this->middleware(new class($callback) implements MiddlewareInterface
+        $this->middleware(new class ($callback) implements MiddlewareInterface
         {
             /**
              * @var callable $callback
