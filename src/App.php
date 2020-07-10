@@ -58,20 +58,17 @@ class App
         $this->container->set(ServerRequestInterface::class, function (): ServerRequestInterface {
             return $this->container->get(ServerRequestFactory::class)->createServerRequestFromGlobals();
         });
+
         if (file_exists($this->app_path . '/bootstrap.php')) {
             includeFile($this->app_path . '/bootstrap.php');
         }
 
-        $this->loadHook('app.init');
+        $this->loadHook('app.start');
 
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
         })();
         if ($callable = $this->reflectRequestTarget()) {
-            $this->loadHook('app.start');
-            if ($this->request_package) {
-                $this->loadHook('app.start@' . str_replace('/', '.', $this->request_package));
-            }
             $this->app_response = $request_handler->execute(function () use ($callable): ResponseInterface {
                 return $this->toResponse($this->execute($callable));
             }, $this->container->get(ServerRequestInterface::class));
@@ -138,6 +135,7 @@ class App
         }
         $this->request_package = $request_package;
         $this->request_target_class = $request_target_class;
+        $this->loadHook('app.start@' . str_replace('/', '.', $this->request_package));
 
         try {
             $request_target = $this->container->get($request_target_class);
