@@ -100,7 +100,7 @@ class App
         }
 
         $url_path = parse_url('/' . implode('/', array_filter(explode('/', $_SERVER['REQUEST_URI']))), PHP_URL_PATH);
-
+        
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
         })()->dispatch(
