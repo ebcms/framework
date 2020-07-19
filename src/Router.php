@@ -38,7 +38,7 @@ class Router
             $uri = '';
             foreach ($routeData as $part) {
                 if (is_array($part)) {
-                    if (isset($param[$part[0]]) && preg_match('/^' . $part[1] . '$/', $param[$part[0]])) {
+                    if (isset($param[$part[0]]) && preg_match('#^' . $part[1] . '$#', (array) $param[$part[0]])) {
                         $uri .= $param[$part[0]];
                         unset($param[$part[0]]);
                         continue;
