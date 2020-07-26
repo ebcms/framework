@@ -109,7 +109,7 @@ class App
             return $this->container->get(Router::class);
         })()->dispatch(
             $_SERVER['REQUEST_METHOD'],
-            $schema . '://' . $_SERVER['HTTP_HOST'] . $url_path
+            $schema . '://' . $_SERVER['HTTP_HOST'] . (strlen($url_path) > 1 ? $url_path : '')
         );
 
         switch ($routeInfo[0]) {
