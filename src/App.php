@@ -13,6 +13,7 @@ use FastRoute\Dispatcher;
 use InvalidArgumentException;
 use OutOfBoundsException;
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -58,6 +59,9 @@ class App
         $this->container->set(ServerRequestInterface::class, function (): ServerRequestInterface {
             return $this->container->get(ServerRequestFactory::class)->createServerRequestFromGlobals();
         });
+        $this->container->set(ResponseFactoryInterface::class, function (): ResponseFactoryInterface {
+            return $this->container->get(ResponseFactory::class);
+        });
 
         if (file_exists($this->app_path . '/bootstrap.php')) {
             includeFile($this->app_path . '/bootstrap.php');
@@ -100,7 +104,7 @@ class App
         }
 
         $url_path = parse_url('/' . implode('/', array_filter(explode('/', $_SERVER['REQUEST_URI']))), PHP_URL_PATH);
-        
+
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
         })()->dispatch(
