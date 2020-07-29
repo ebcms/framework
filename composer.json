@@ -18,7 +18,7 @@
         "ebcms/psr14": "^1.0",
         "ebcms/psr16-null": "^1.0",
         "ebcms/psr17": "^1.0",
-        "nikic/fast-route": "^1.3"
+        "ebcms/router": "^1.0"
     },
     "autoload": {
         "psr-4": {

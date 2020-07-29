@@ -9,7 +9,6 @@ use Composer\Autoload\ClassLoader;
 use Ebcms\Container;
 use Ebcms\ResponseFactory;
 use Ebcms\ServerRequestFactory;
-use FastRoute\Dispatcher;
 use InvalidArgumentException;
 use OutOfBoundsException;
 use Psr\Container\ContainerInterface;
@@ -107,22 +106,22 @@ class App
 
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
-        })()->dispatch(
+        })()->getDispatcher()->dispatch(
             $_SERVER['REQUEST_METHOD'],
             $schema . '://' . $_SERVER['HTTP_HOST'] . (strlen($url_path) > 1 ? $url_path : '')
         );
 
         switch ($routeInfo[0]) {
-            case Dispatcher::NOT_FOUND:
+            case 0:
                 $request_target_class = $this->reflectRequestTargetClassFromPath($this->resolveRelativeUriPath());
                 if (!$request_target_class) {
                     return null;
                 }
                 break;
-            case Dispatcher::METHOD_NOT_ALLOWED:
+            case 2:
                 return null;
                 break;
-            case Dispatcher::FOUND:
+            case 1:
                 $_GET = array_merge((array) $routeInfo[2], $_GET);
                 $request_target_class = $routeInfo[1];
                 if (is_callable($request_target_class)) {
