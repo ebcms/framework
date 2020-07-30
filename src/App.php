@@ -15,6 +15,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
 use Psr\SimpleCache\CacheInterface;
 use ReflectionClass;
 use ReflectionFunction;
@@ -118,11 +119,39 @@ class App
                     return null;
                 }
                 break;
-            case 2:
-                return null;
-                break;
+
             case 1:
-                $_GET = array_merge((array) $routeInfo[2], $_GET);
+                $server_request = (function (): ServerRequestInterface {
+                    return $this->container->get(ServerRequestInterface::class);
+                })();
+
+                if ($routeInfo[4]) {
+                    foreach ($routeInfo[4] as $key => $value) {
+                        $server_request = $server_request->withAttribute($key, $value);
+                    }
+                }
+
+                if ($routeInfo[2]) {
+                    $server_request = $server_request->withQueryParams($routeInfo[2]);
+                }
+
+                $this->container->set(ServerRequestInterface::class, function () use ($server_request) {
+                    return $server_request;
+                });
+
+                if ($routeInfo[3]) {
+                    $request_handler = (function (): RequestHandler {
+                        return $this->container->get(RequestHandler::class);
+                    })();
+                    foreach ($routeInfo[3] as $middleware) {
+                        if (is_string($middleware)) {
+                            $request_handler->lazyMiddleware($middleware);
+                        } elseif ($middleware instanceof MiddlewareInterface) {
+                            $request_handler->middleware($middleware);
+                        }
+                    }
+                }
+
                 $request_target_class = $routeInfo[1];
                 if (is_callable($request_target_class)) {
                     return $request_target_class;
@@ -130,6 +159,10 @@ class App
                 if (!$request_target_class || !is_string($request_target_class)) {
                     return null;
                 }
+                break;
+
+            case 2:
+                return null;
                 break;
         }
 
