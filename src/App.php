@@ -131,8 +131,8 @@ class App
                     }
                 }
 
-                if ($routeInfo[2]) {
-                    $server_request = $server_request->withQueryParams(array_merge($_GET, $routeInfo[2]));
+                if ($routeInfo[2] || $routeInfo[4]) {
+                    $server_request = $server_request->withQueryParams(array_merge($_GET, $routeInfo[2], $routeInfo[4]));
                 }
 
                 $this->container->set(ServerRequestInterface::class, function () use ($server_request) {
