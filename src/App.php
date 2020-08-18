@@ -67,7 +67,7 @@ class App
             includeFile($this->app_path . '/bootstrap.php');
         }
 
-        $this->loadHook('app.start');
+        $this->emitHook('app.start');
 
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
@@ -86,9 +86,9 @@ class App
         (new ResponseEmitter)->emit($this->app_response);
 
         if ($this->request_package) {
-            $this->loadHook('app.end@' . str_replace('/', '.', $this->request_package));
+            $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
         }
-        $this->loadHook('app.end');
+        $this->emitHook('app.end');
     }
 
     private function reflectRequestTarget(): ?callable
@@ -171,7 +171,7 @@ class App
         }
         $this->request_package = $request_package;
         $this->request_target_class = $request_target_class;
-        $this->loadHook('app.start@' . str_replace('/', '.', $this->request_package));
+        $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
 
         try {
             $request_target = $this->container->get($request_target_class);
@@ -242,36 +242,6 @@ class App
         return (strlen($dirname) > 1 ? $dirname : '') . '/' . pathinfo($relative_uri_path, PATHINFO_FILENAME);
     }
 
-    private function loadHook(string $tag)
-    {
-        static $hooks = [];
-        if (!$hooks) {
-            foreach ($this->getPackages() as $value) {
-                foreach (glob($value['dir'] . '/src/hook/*/*.php') as $file) {
-                    $hook_name = pathinfo(dirname($file), PATHINFO_BASENAME);
-                    preg_match('/^(.*)(#([0-9]+))*$/Ui', pathinfo($file, PATHINFO_FILENAME), $matches);
-                    if (!array_key_exists($hook_name, $hooks)) {
-                        $hooks[$hook_name] = new SplPriorityQueue;
-                    }
-                    $hooks[$hook_name]->insert($file, isset($matches[3]) ? $matches[3] : 50);
-                }
-            }
-            foreach (glob($this->app_path . '/hook/*/*.php') as $file) {
-                $hook_name = pathinfo(dirname($file), PATHINFO_BASENAME);
-                preg_match('/^(.*)(#([0-9]+))*$/Ui', pathinfo($file, PATHINFO_FILENAME), $matches);
-                if (!array_key_exists($hook_name, $hooks)) {
-                    $hooks[$hook_name] = new SplPriorityQueue;
-                }
-                $hooks[$hook_name]->insert($file, isset($matches[3]) ? $matches[3] : 50);
-            }
-        }
-        if (array_key_exists($tag, $hooks)) {
-            foreach ($hooks[$tag] as $file) {
-                includeFile($file);
-            }
-        }
-    }
-
     private function toResponse($result): ResponseInterface
     {
         if ($result instanceof ResponseInterface) {
@@ -285,6 +255,13 @@ class App
             $response = $response->withHeader('Content-Type', 'application/json');
         }
         return $response;
+    }
+
+    private function emitHook(string $name, array &$params = [])
+    {
+        (function (): Hook {
+            return $this->container->get(Hook::class);
+        })()->emit($name, $params);
     }
 
     private function reflectArguments(
