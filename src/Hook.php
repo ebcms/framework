@@ -21,7 +21,7 @@ class Hook
 
     public function emit(string $name, &$params = null)
     {
-        foreach ($this->getHooks($name) as $value) {
+        foreach (clone $this->getHooks($name) as $value) {
             call_hook($value, $params);
             if ($this->is_stop) {
                 $this->is_stop = false;
