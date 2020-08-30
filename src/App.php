@@ -104,9 +104,6 @@ class App
             $schema = 'http';
         }
 
-        echo $this->filterUrlPath();
-        die;
-
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
         })()->getDispatcher()->dispatch(
