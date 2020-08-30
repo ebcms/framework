@@ -104,16 +104,19 @@ class App
             $schema = 'http';
         }
 
+        echo $this->filterUrlPath();
+        die;
+
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
         })()->getDispatcher()->dispatch(
             $_SERVER['REQUEST_METHOD'],
-            $schema . '://' . $_SERVER['HTTP_HOST'] . $this->filterRequestUri()
+            $schema . '://' . $_SERVER['HTTP_HOST'] . $this->filterUrlPath()
         );
 
         switch ($routeInfo[0]) {
             case 0:
-                $request_target_class = $this->reflectRequestTargetClassFromPath($this->resolveRelativeUriPath());
+                $request_target_class = $this->reflectRequestTargetClassFromPath($this->resolveRelativeUrlPath());
                 if (!$request_target_class) {
                     return null;
                 }
@@ -217,26 +220,34 @@ class App
         );
     }
 
-    private function resolveRelativeUriPath(): string
+    private function resolveRelativeUrlPath(): string
     {
-        $request_uri = $this->filterRequestUri();
-        if (substr($request_uri, -1) == '/') {
-            $request_uri .= 'index';
+        $url_path = $this->filterUrlPath();
+        if (substr($url_path, -1) == '/') {
+            $url_path .= 'index';
         }
         $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
-        if (strpos($request_uri, $script_name) === 0) {
+        if (strpos($url_path, $script_name) === 0) {
             $prefix = $script_name;
         } else {
             $prefix = strlen(dirname($script_name)) > 1 ? dirname($script_name) : '';
         }
-        return substr($request_uri, strlen($prefix));
+        return substr($url_path, strlen($prefix));
     }
 
-    private function filterRequestUri(): string
+    private function filterUrlPath(): string
     {
-        $request_uri = implode('/', array_filter(explode('/', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))));
-        $request_uri = $request_uri ? '/' . $request_uri : '';
-        return substr(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), -1) == '/' ? $request_uri . '/' : $request_uri;
+        $tmp_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $url_path = implode('/', array_filter(explode('/', $tmp_path)));
+        $url_path = $url_path ? '/' . $url_path : '';
+        $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
+        if ($url_path === $script_name) {
+            return $url_path . '/';
+        }
+        if (substr($tmp_path, -1) === '/') {
+            return $url_path . '/';
+        }
+        return $url_path;
     }
 
     private function toResponse($result): ResponseInterface
