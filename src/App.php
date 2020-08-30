@@ -62,10 +62,18 @@ class App
 
         $this->emitHook('app.init');
 
+        $callable = $this->reflectRequestTarget();
+
+        $this->emitHook('app.start');
+        if ($this->request_package) {
+            $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
+        }
+
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
         })();
-        if ($callable = $this->reflectRequestTarget()) {
+
+        if ($callable) {
             $this->app_response = $request_handler->execute(function () use ($callable): ResponseInterface {
                 return $this->toResponse($this->execute($callable));
             }, $this->container->get(ServerRequestInterface::class));
@@ -162,9 +170,6 @@ class App
         }
         $this->request_package = $request_package;
         $this->request_target_class = $request_target_class;
-        $this->emitHook('app.start');
-        $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
-
         try {
             $request_target = $this->container->get($request_target_class);
             return [$request_target, 'handle'];
