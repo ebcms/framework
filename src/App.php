@@ -21,9 +21,6 @@ use ReflectionClass;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
-use SplPriorityQueue;
-
-use function Composer\Autoload\includeFile;
 
 /**
  * @property Container $container
@@ -63,11 +60,7 @@ class App
             return $this->container->get(ResponseFactory::class);
         });
 
-        if (file_exists($this->app_path . '/bootstrap.php')) {
-            includeFile($this->app_path . '/bootstrap.php');
-        }
-
-        $this->emitHook('app.start');
+        $this->emitHook('app.init');
 
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
@@ -103,13 +96,11 @@ class App
             $schema = 'http';
         }
 
-        $url_path = '/' . implode('/', array_filter(explode('/', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))));
-
         $routeInfo = (function (): Router {
             return $this->container->get(Router::class);
         })()->getDispatcher()->dispatch(
             $_SERVER['REQUEST_METHOD'],
-            $schema . '://' . $_SERVER['HTTP_HOST'] . (strlen($url_path) > 1 ? $url_path : '')
+            $schema . '://' . $_SERVER['HTTP_HOST'] . $this->filterRequestUri()
         );
 
         switch ($routeInfo[0]) {
@@ -171,6 +162,7 @@ class App
         }
         $this->request_package = $request_package;
         $this->request_target_class = $request_target_class;
+        $this->emitHook('app.start');
         $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
 
         try {
@@ -222,24 +214,24 @@ class App
 
     private function resolveRelativeUriPath(): string
     {
-        $web_root = (function (): string {
-            $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
-            $request_uri = parse_url('/' . implode('/', array_filter(explode('/', $_SERVER['REQUEST_URI']))), PHP_URL_PATH);
-            if (strpos($request_uri, $script_name) === 0) {
-                return $script_name;
-            } else {
-                return strlen(dirname($script_name)) > 1 ? dirname($script_name) : '';
-            }
-        })();
-        $relative_uri_path = substr(
-            parse_url(
-                '/' . implode('/', array_filter(explode('/', $_SERVER['REQUEST_URI']))),
-                PHP_URL_PATH
-            ),
-            strlen($web_root)
-        );
-        $dirname = pathinfo($relative_uri_path, PATHINFO_DIRNAME);
-        return (strlen($dirname) > 1 ? $dirname : '') . '/' . pathinfo($relative_uri_path, PATHINFO_FILENAME);
+        $request_uri = $this->filterRequestUri();
+        if (substr($request_uri, -1) == '/') {
+            $request_uri .= 'index';
+        }
+        $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
+        if (strpos($request_uri, $script_name) === 0) {
+            $prefix = strlen($script_name);
+        } else {
+            $prefix = strlen(dirname($script_name)) > 1 ? dirname($script_name) : '';
+        }
+        return substr($request_uri, $prefix);
+    }
+
+    private function filterRequestUri(): string
+    {
+        $request_uri = implode('/', array_filter(explode('/', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))));
+        $request_uri = $request_uri ? '/' . $request_uri : '';
+        return substr(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), -1) == '/' ? $request_uri . '/' : $request_uri;
     }
 
     private function toResponse($result): ResponseInterface
@@ -360,17 +352,17 @@ class App
         return $packages;
     }
 
-    public function getAppPath(): string
+    public function getAppPath(): ?string
     {
         return $this->app_path;
     }
 
-    public function getRequestPackage(): string
+    public function getRequestPackage(): ?string
     {
         return $this->request_package;
     }
 
-    public function getRequestTargetClass(): string
+    public function getRequestTargetClass(): ?string
     {
         return $this->request_target_class;
     }
