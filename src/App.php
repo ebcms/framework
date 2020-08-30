@@ -225,11 +225,11 @@ class App
         }
         $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
         if (strpos($request_uri, $script_name) === 0) {
-            $prefix = strlen($script_name);
+            $prefix = $script_name;
         } else {
             $prefix = strlen(dirname($script_name)) > 1 ? dirname($script_name) : '';
         }
-        return substr($request_uri, $prefix);
+        return substr($request_uri, strlen($prefix));
     }
 
     private function filterRequestUri(): string
