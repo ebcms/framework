@@ -9,6 +9,7 @@ use Composer\Autoload\ClassLoader;
 use Ebcms\Container;
 use Ebcms\ResponseFactory;
 use Ebcms\ServerRequestFactory;
+use ErrorException;
 use InvalidArgumentException;
 use OutOfBoundsException;
 use Psr\Container\ContainerInterface;
@@ -27,7 +28,6 @@ use ReflectionMethod;
  * @property string $app_path
  * @property string $request_package
  * @property string $request_target_class
- * @property ?ResponseInterface $app_response
  */
 class App
 {
@@ -35,7 +35,6 @@ class App
     private $app_path;
     private $request_package;
     private $request_target_class;
-    private $app_response;
 
     private function __construct(Container $container)
     {
@@ -60,36 +59,46 @@ class App
             return $this->container->get(ResponseFactory::class);
         });
 
-        $this->emitHook('app.init');
-
-        $callable = $this->reflectRequestTarget();
-
-        $this->emitHook('app.start');
-        if ($this->request_package) {
-            $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
-        }
-
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
         })();
 
-        if ($callable) {
-            $this->app_response = $request_handler->execute(function () use ($callable): ResponseInterface {
-                return $this->toResponse($this->execute($callable));
-            }, $this->container->get(ServerRequestInterface::class));
-        } else {
-            $this->app_response = $request_handler->execute(function (): ResponseInterface {
-                return (new ResponseFactory())->createResponse(404);
-            }, $this->container->get(ServerRequestInterface::class));
-        }
+        set_error_handler(function ($errno, $errstr, $errfile, $errline) {
+            throw new ErrorException($errstr . ' on line ' . $errline . ' in file ' . $errfile, $errno);
+        });
 
-        $this->app_response = $this->app_response->withHeader('X-Powered-By', 'EBCMS');
-        (new ResponseEmitter)->emit($this->app_response);
+        $response = $request_handler->execute(function (): ResponseInterface {
+            try {
+                $this->emitHook('app.init');
 
-        if ($this->request_package) {
-            $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
-        }
-        $this->emitHook('app.end');
+                $callable = $this->reflectRequestTarget();
+
+                $this->emitHook('app.start');
+                if ($this->request_package) {
+                    $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
+                }
+
+                if ($callable) {
+                    $response = $this->toResponse($this->execute($callable));
+                } else {
+                    $response = (new ResponseFactory())->createResponse(404);
+                }
+
+                if ($this->request_package) {
+                    $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
+                }
+                $this->emitHook('app.end');
+            } catch (\Throwable $th) {
+                $response = (new ResponseFactory())->createResponse(500);
+                $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+            }
+
+            return $response;
+        }, $this->container->get(ServerRequestInterface::class));
+
+        ob_clean();
+        $response = $response->withHeader('X-Powered-By', 'EBCMS');
+        (new ResponseEmitter)->emit($response);
     }
 
     private function reflectRequestTarget(): ?callable
@@ -378,11 +387,6 @@ class App
     public function getRequestTargetClass(): ?string
     {
         return $this->request_target_class;
-    }
-
-    public function getAppResponse(): ?ResponseInterface
-    {
-        return $this->app_response;
     }
 
     public static function getInstance(): App
