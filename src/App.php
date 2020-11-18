@@ -67,35 +67,35 @@ class App
             throw new ErrorException($errstr . ' on line ' . $errline . ' in file ' . $errfile, $errno);
         });
 
-        $response = $request_handler->execute(function (): ResponseInterface {
-            try {
-                $this->emitHook('app.init');
 
-                $callable = $this->reflectRequestTarget();
+        try {
+            $this->emitHook('app.init');
 
-                $this->emitHook('app.start');
-                if ($this->request_package) {
-                    $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
-                }
+            $callable = $this->reflectRequestTarget();
 
-                if ($callable) {
-                    $response = $this->toResponse($this->execute($callable));
-                } else {
-                    $response = (new ResponseFactory())->createResponse(404);
-                }
-
-                if ($this->request_package) {
-                    $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
-                }
-                $this->emitHook('app.end');
-            } catch (\Throwable $th) {
-                $response = (new ResponseFactory())->createResponse(500);
-                $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+            $this->emitHook('app.start');
+            if ($this->request_package) {
+                $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
             }
 
-            return $response;
-        }, $this->container->get(ServerRequestInterface::class));
+            if ($callable) {
+                $response = $request_handler->execute(function () use ($callable): ResponseInterface {
+                    return $this->toResponse($this->execute($callable));
+                }, $this->container->get(ServerRequestInterface::class));
+            } else {
+                $response = (new ResponseFactory())->createResponse(404);
+            }
 
+            if ($this->request_package) {
+                $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package), $response);
+            }
+            $this->emitHook('app.end', $response);
+        } catch (\Throwable $th) {
+            $response = (new ResponseFactory())->createResponse(500);
+            $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+        }
+
+        $this->emitHook('app.response', $response);
         ob_clean();
         $response = $response->withHeader('X-Powered-By', 'EBCMS');
         (new ResponseEmitter)->emit($response);
@@ -113,14 +113,14 @@ class App
             $schema = 'http';
         }
 
-        $routeInfo = (function (): Router {
+        $route_info = (function (): Router {
             return $this->container->get(Router::class);
         })()->getDispatcher()->dispatch(
             $_SERVER['REQUEST_METHOD'],
             $schema . '://' . $_SERVER['HTTP_HOST'] . $this->filterUrlPath()
         );
 
-        switch ($routeInfo[0]) {
+        switch ($route_info[0]) {
             case 0:
                 $request_target_class = $this->reflectRequestTargetClassFromPath($this->resolveRelativeUrlPath());
                 if (!$request_target_class) {
@@ -129,43 +129,40 @@ class App
                 break;
 
             case 1:
+                $request_target_class = $route_info[1];
+                if (!is_string($request_target_class)) {
+                    return null;
+                }
+
                 $server_request = (function (): ServerRequestInterface {
                     return $this->container->get(ServerRequestInterface::class);
                 })();
 
-                if ($routeInfo[4]) {
-                    foreach ($routeInfo[4] as $key => $value) {
+                if ($route_info[4]) {
+                    foreach ($route_info[4] as $key => $value) {
                         $server_request = $server_request->withAttribute($key, $value);
                     }
                 }
 
-                if ($routeInfo[2] || $routeInfo[4]) {
-                    $server_request = $server_request->withQueryParams(array_merge($_GET, $routeInfo[2], $routeInfo[4]));
+                if ($route_info[2] || $route_info[4]) {
+                    $server_request = $server_request->withQueryParams(array_merge($_GET, $route_info[2], $route_info[4]));
                 }
 
                 $this->container->set(ServerRequestInterface::class, function () use ($server_request) {
                     return $server_request;
                 });
 
-                if ($routeInfo[3]) {
+                if ($route_info[3]) {
                     $request_handler = (function (): RequestHandler {
                         return $this->container->get(RequestHandler::class);
                     })();
-                    foreach ($routeInfo[3] as $middleware) {
+                    foreach ($route_info[3] as $middleware) {
                         if (is_string($middleware)) {
                             $request_handler->lazyMiddleware($middleware);
                         } elseif ($middleware instanceof MiddlewareInterface) {
                             $request_handler->middleware($middleware);
                         }
                     }
-                }
-
-                $request_target_class = $routeInfo[1];
-                if (is_callable($request_target_class)) {
-                    return $request_target_class;
-                }
-                if (!$request_target_class || !is_string($request_target_class)) {
-                    return null;
                 }
                 break;
 
@@ -179,12 +176,7 @@ class App
         }
         $this->request_package = $request_package;
         $this->request_target_class = $request_target_class;
-        try {
-            $request_target = $this->container->get($request_target_class);
-            return [$request_target, 'handle'];
-        } catch (ContainerNotFoundException $th) {
-            return null;
-        }
+        return [$this->container->get($request_target_class), 'handle'];
     }
 
     private function reflectPackageFromTargetClass(string $request_target_class): ?string
@@ -222,7 +214,7 @@ class App
         return str_replace(
             ['-'],
             '',
-            ucwords('App\\' . $vendor_name . '\\' . $package_name . '\\Http\\' . implode('\\', $path_arr), '\\-')
+            ucwords('\\App\\' . $vendor_name . '\\' . $package_name . '\\Http\\' . implode('\\', $path_arr), '\\-')
         );
     }
 
@@ -271,7 +263,7 @@ class App
         return $response;
     }
 
-    private function emitHook(string $name, array &$params = [])
+    private function emitHook(string $name, &$params = [])
     {
         (function (): Hook {
             return $this->container->get(Hook::class);
