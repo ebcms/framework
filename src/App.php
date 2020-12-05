@@ -17,6 +17,8 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use ReflectionClass;
 use ReflectionFunction;
@@ -58,6 +60,12 @@ class App
         $this->container->set(ResponseFactoryInterface::class, function (): ResponseFactoryInterface {
             return $this->container->get(ResponseFactory::class);
         });
+        $this->container->set(CacheInterface::class, function (): CacheInterface {
+            return $this->container->get(SimpleCacheNullAdapter::class);
+        });
+        $this->container->set(LoggerInterface::class, function (): LoggerInterface {
+            return $this->container->get(NullLogger::class);
+        });
 
         $request_handler = (function (): RequestHandler {
             return $this->container->get(RequestHandler::class);
@@ -91,12 +99,18 @@ class App
             }
             $this->emitHook('app.end', $response);
         } catch (\Throwable $th) {
-            $response = (new ResponseFactory())->createResponse(500);
-            $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+            $param = ['exception' => $th];
+            $this->emitHook('app.exception', $param);
+            if (isset($param['response']) && ($param['response'] instanceof ResponseInterface)) {
+                $response = $param['response'];
+            } else {
+                $response = (new ResponseFactory())->createResponse(500);
+                $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+            }
+            ob_clean();
         }
 
         $this->emitHook('app.response', $response);
-        ob_clean();
         $response = $response->withHeader('X-Powered-By', 'EBCMS');
         (new ResponseEmitter)->emit($response);
     }
@@ -340,14 +354,11 @@ class App
     {
         static $packages;
         if (!$packages) {
-            $cache = (function (): ?CacheInterface {
-                if ($this->container->has(CacheInterface::class)) {
-                    return $this->container->get(CacheInterface::class);
-                }
-                return null;
+            $cache = (function (): CacheInterface {
+                return $this->container->get(CacheInterface::class);
             })();
 
-            if (!$cache || !$packages = $cache->get('packages_cache')) {
+            if (!$packages = $cache->get('packages_cache')) {
                 $vendor_dir = dirname(dirname((new ReflectionClass(ClassLoader::class))->getFileName()));
                 $packages = [];
                 $installed = json_decode(file_get_contents($vendor_dir . '/composer/installed.json'), true);
@@ -358,9 +369,7 @@ class App
                         ];
                     }
                 }
-                if ($cache) {
-                    $cache->set('packages_cache', $packages);
-                }
+                $cache->set('packages_cache', $packages);
             }
         }
         return $packages;
