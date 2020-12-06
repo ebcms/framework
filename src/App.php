@@ -362,11 +362,14 @@ class App
                 $vendor_dir = dirname(dirname((new ReflectionClass(ClassLoader::class))->getFileName()));
                 $packages = [];
                 $installed = json_decode(file_get_contents($vendor_dir . '/composer/installed.json'), true);
+                $disabled = (array)include $this->app_path . '/config/disabled.php';
                 foreach ($installed as $package) {
                     if ($package['type'] == 'ebcms-app') {
-                        $packages[$package['name']] = [
-                            'dir' => $vendor_dir . '/' . $package['name'],
-                        ];
+                        if (!in_array($package['name'], $disabled)) {
+                            $packages[$package['name']] = [
+                                'dir' => $vendor_dir . '/' . $package['name'],
+                            ];
+                        }
                     }
                 }
                 $cache->set('packages_cache', $packages);
