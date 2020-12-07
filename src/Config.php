@@ -25,8 +25,11 @@ class Config
     {
         list($path, $package_name) = explode('@', $key);
         $package_name = str_replace('.', '/', $package_name);
-        if (!array_key_exists($package_name, $this->configs) || !$path) {
+        if (!$path) {
             throw new InvalidArgumentException('Invalid Argument Exception');
+        }
+        if (!array_key_exists($package_name, $this->configs)) {
+            throw new InvalidArgumentException('App [' . $package_name . '] unavailable!');
         }
 
         $paths = array_filter(explode('.', $path));
@@ -43,8 +46,11 @@ class Config
     {
         list($path, $package_name) = explode('@', $key);
         $package_name = str_replace('.', '/', $package_name);
-        if (!array_key_exists($package_name, $this->configs) || !$path) {
+        if (!$path) {
             throw new InvalidArgumentException('Invalid Argument Exception');
+        }
+        if (!array_key_exists($package_name, $this->configs)) {
+            throw new InvalidArgumentException('App [' . $package_name . '] unavailable!');
         }
 
         $paths = array_filter(explode('.', $path));
@@ -52,13 +58,14 @@ class Config
         return $this;
     }
 
-    private function discover($package_name, $key)
+    private function discover(string $package_name, string $key)
     {
+        if (!array_key_exists($package_name, $this->configs)) {
+            throw new InvalidArgumentException('App [' . $package_name . '] unavailable!');
+        }
         $args = [];
-        if (array_key_exists($package_name, $this->configs)) {
-            if (file_exists($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php')) {
-                $args[] = $this->requireFile($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php');
-            }
+        if (file_exists($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php')) {
+            $args[] = $this->requireFile($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php');
         }
         if (file_exists($this->app_path . '/config/' . $package_name . '/' . $key . '.php')) {
             $args[] = $this->requireFile($this->app_path . '/config/' . $package_name . '/' . $key . '.php');
