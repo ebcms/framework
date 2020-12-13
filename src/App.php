@@ -29,14 +29,14 @@ use ReflectionMethod;
  * @property Container $container
  * @property string $app_path
  * @property string $request_package
- * @property string $request_target_class
+ * @property string $request_class
  */
 class App
 {
     private $container;
     private $app_path;
     private $request_package;
-    private $request_target_class;
+    private $request_class;
 
     private function __construct(Container $container)
     {
@@ -79,16 +79,16 @@ class App
         try {
             $this->emitHook('app.init');
 
-            $callable = $this->reflectRequestTarget();
+            $class_name = $this->reflectRequestClass();
 
             $this->emitHook('app.start');
             if ($this->request_package) {
                 $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
             }
 
-            if ($callable) {
-                $response = $request_handler->execute(function () use ($callable): ResponseInterface {
-                    return $this->toResponse($this->execute($callable));
+            if ($class_name) {
+                $response = $request_handler->execute(function () use ($class_name): ResponseInterface {
+                    return $this->toResponse($this->execute([$this->container->get($class_name), 'handle']));
                 }, $this->container->get(ServerRequestInterface::class));
             } else {
                 $response = (new ResponseFactory())->createResponse(404);
@@ -115,7 +115,7 @@ class App
         (new ResponseEmitter)->emit($response);
     }
 
-    private function reflectRequestTarget(): ?callable
+    private function reflectRequestClass(): ?string
     {
         if (
             (!empty($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] == 'https')
@@ -136,15 +136,15 @@ class App
 
         switch ($route_info[0]) {
             case 0:
-                $request_target_class = $this->reflectRequestTargetClassFromPath($this->resolveRelativeUrlPath());
-                if (!$request_target_class) {
+                $request_class = $this->reflectRequestClassFromPath($this->resolveRelativeUrlPath());
+                if (!$request_class) {
                     return null;
                 }
                 break;
 
             case 1:
-                $request_target_class = $route_info[1];
-                if (!is_string($request_target_class)) {
+                $request_class = $route_info[1];
+                if (!is_string($request_class)) {
                     return null;
                 }
 
@@ -185,22 +185,22 @@ class App
                 break;
         }
 
-        if (!$request_package = $this->reflectPackageFromTargetClass($request_target_class)) {
+        if (!$request_package = $this->reflectPackageFromRequestClass($request_class)) {
             return null;
         }
         $this->request_package = $request_package;
-        $this->request_target_class = $request_target_class;
-        return [$this->container->get($request_target_class), 'handle'];
+        $this->request_class = $request_class;
+        return $request_class;
     }
 
-    private function reflectPackageFromTargetClass(string $request_target_class): ?string
+    private function reflectPackageFromRequestClass(string $request_class): ?string
     {
         $tmp_arr = array_values(array_filter(explode('\\', strtolower(preg_replace_callback(
             '/([\w])([A-Z]{1})/',
             function ($match) {
                 return $match[1] . '-' . lcfirst($match[2]);
             },
-            $request_target_class
+            $request_class
         )))));
         if ($tmp_arr[0] !== 'app' || $tmp_arr[3] !== 'http' || !isset($tmp_arr[4])) {
             return null;
@@ -212,7 +212,7 @@ class App
         return $package;
     }
 
-    private function reflectRequestTargetClassFromPath(string $path): ?string
+    private function reflectRequestClassFromPath(string $path): ?string
     {
         $path_arr = array_map(function (string $val) {
             return strtolower(preg_replace('/([^A-Z])([A-Z])/', '$1-$2', $val));
@@ -388,9 +388,9 @@ class App
         return $this->request_package;
     }
 
-    public function getRequestTargetClass(): ?string
+    public function getRequestClass(): ?string
     {
-        return $this->request_target_class;
+        return $this->request_class;
     }
 
     public static function getInstance(): App
