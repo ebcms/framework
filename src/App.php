@@ -30,6 +30,7 @@ use ReflectionMethod;
  * @property string $app_path
  * @property string $request_package
  * @property string $request_class
+ * @property ?ResponseInterface $response
  */
 class App
 {
@@ -37,6 +38,7 @@ class App
     private $app_path;
     private $request_package;
     private $request_class;
+    private $response;
 
     private function __construct(Container $container)
     {
@@ -78,41 +80,32 @@ class App
 
         try {
             $this->emitHook('app.init');
-
             $class_name = $this->reflectRequestClass();
-
             $this->emitHook('app.start');
-            if ($this->request_package) {
-                $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
-            }
-
             if ($class_name) {
-                $response = $request_handler->execute(function () use ($class_name): ResponseInterface {
-                    return $this->toResponse($this->execute([$this->container->get($class_name), 'handle']));
+                if ($this->request_package) {
+                    $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
+                }
+                $callable = [$this->container->get($class_name), 'handle'];
+                $this->response = $request_handler->execute(function () use ($callable): ResponseInterface {
+                    return $this->toResponse($this->execute($callable));
                 }, $this->container->get(ServerRequestInterface::class));
+                if ($this->request_package) {
+                    $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
+                }
             } else {
-                $response = (new ResponseFactory())->createResponse(404);
+                $this->response = (new ResponseFactory())->createResponse(404);
             }
-
-            if ($this->request_package) {
-                $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package), $response);
-            }
-            $this->emitHook('app.end', $response);
+            $this->emitHook('app.end');
         } catch (\Throwable $th) {
-            $param = ['exception' => $th];
-            $this->emitHook('app.exception', $param);
-            if (isset($param['response']) && ($param['response'] instanceof ResponseInterface)) {
-                $response = $param['response'];
-            } else {
-                $response = (new ResponseFactory())->createResponse(500);
-                $response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
-            }
+            $this->response = (new ResponseFactory())->createResponse(500);
+            $this->response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
+            $this->emitHook('app.exception', $th);
             ob_clean();
         }
 
-        $this->emitHook('app.response', $response);
-        $response = $response->withHeader('X-Powered-By', 'EBCMS');
-        (new ResponseEmitter)->emit($response);
+        $this->response = $this->response->withHeader('X-Powered-By', 'EBCMS');
+        (new ResponseEmitter)->emit($this->response);
     }
 
     private function reflectRequestClass(): ?string
@@ -391,6 +384,11 @@ class App
     public function getRequestClass(): ?string
     {
         return $this->request_class;
+    }
+
+    public function getResponse(): ?ResponseInterface
+    {
+        return $this->response;
     }
 
     public static function getInstance(): App
