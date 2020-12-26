@@ -355,16 +355,28 @@ class App
                 $vendor_dir = dirname(dirname((new ReflectionClass(ClassLoader::class))->getFileName()));
                 $packages = [];
                 $installed = json_decode(file_get_contents($vendor_dir . '/composer/installed.json'), true);
-                $disabled = (array)include $this->app_path . '/config/disabled.php';
                 foreach ($installed as $package) {
                     if ($package['type'] == 'ebcms-app') {
-                        if (!in_array($package['name'], $disabled)) {
-                            $packages[$package['name']] = [
-                                'dir' => $vendor_dir . '/' . $package['name'],
-                            ];
-                        }
+                        $packages[$package['name']] = [
+                            'dir' => $vendor_dir . '/' . $package['name'],
+                        ];
                     }
                 }
+                $loader = new ClassLoader();
+                foreach (glob($this->app_path . '/plugins/*/plugin.json') as $value) {
+                    $name = pathinfo(dirname($value), PATHINFO_FILENAME);
+                    if (!file_exists($this->app_path . '/config/plugin/' . $name . '/disabled')) {
+                        $packages['plugin/' . $name] = [
+                            'dir' => dirname($value),
+                        ];
+                        $loader->addPsr4(str_replace(
+                            ['-'],
+                            '',
+                            ucwords('App\\Plugin\\' . $name . '\\', '\\-')
+                        ), dirname($value) . '/src/library/');
+                    }
+                }
+                $loader->register();
                 $cache->set('packages_cache', $packages);
             }
         }
