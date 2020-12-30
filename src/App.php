@@ -363,16 +363,22 @@ class App
                     }
                 }
                 $loader = new ClassLoader();
-                foreach (glob($this->app_path . '/plugins/*/plugin.json') as $value) {
-                    $name = pathinfo(dirname($value), PATHINFO_FILENAME);
-                    if (!file_exists($this->app_path . '/config/plugin/' . $name . '/disabled')) {
-                        $packages['plugin/' . $name] = [
-                            'dir' => dirname($value),
+                foreach (glob($this->app_path . '/plugin/*/plugin.json') as $value) {
+                    $dir = dirname($value);
+                    $plugin_json = (array)json_decode(file_get_contents($value), true);
+                    if (
+                        isset($plugin_json['name']) &&
+                        file_exists($dir . '/install.lock') &&
+                        !file_exists($dir . '/disabled.lock') &&
+                        preg_match('/^[a-z0-9\-]+$/', $plugin_json['name'])
+                    ) {
+                        $packages['plugin/' . $plugin_json['name']] = [
+                            'dir' => $dir,
                         ];
                         $loader->addPsr4(str_replace(
                             ['-'],
                             '',
-                            ucwords('App\\Plugin\\' . $name . '\\', '\\-')
+                            ucwords('App\\Plugin\\' . $plugin_json['name'] . '\\', '\\-')
                         ), dirname($value) . '/src/library/');
                     }
                 }
