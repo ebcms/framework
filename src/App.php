@@ -356,7 +356,9 @@ class App
                 $packages = [];
                 $installed = json_decode(file_get_contents($vendor_dir . '/composer/installed.json'), true);
                 foreach ($installed as $package) {
-                    if ($package['type'] == 'ebcms-app') {
+                    if (
+                        $package['type'] == 'ebcms-app'
+                    ) {
                         $packages[$package['name']] = [
                             'dir' => $vendor_dir . '/' . $package['name'],
                         ];
@@ -367,8 +369,8 @@ class App
                     $dir = dirname($value);
                     $name = pathinfo(dirname($value), PATHINFO_FILENAME);
                     if (
-                        file_exists($dir . '/install.lock') &&
-                        !file_exists($dir . '/disable.lock')
+                        file_exists($this->app_path . '/config/plugin/' . $name . '/install.lock') &&
+                        !file_exists($this->app_path . '/config/plugin/' . $name . '/disabled.lock')
                     ) {
                         $packages['plugin/' . $name] = [
                             'dir' => $dir,
@@ -377,7 +379,7 @@ class App
                             ['-'],
                             '',
                             ucwords('App\\Plugin\\' . $name . '\\', '\\-')
-                        ), dirname($value) . '/src/library/');
+                        ), $dir . '/src/library/');
                     }
                 }
                 $loader->register();
