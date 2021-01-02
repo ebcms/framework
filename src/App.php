@@ -83,15 +83,15 @@ class App
             $class_name = $this->reflectRequestClass();
             $this->emitHook('app.start');
             if ($class_name) {
-                if ($this->request_package) {
-                    $this->emitHook('app.start@' . str_replace('/', '.', $this->request_package));
-                }
                 $callable = [$this->container->get($class_name), 'handle'];
+                if ($this->request_package) {
+                    $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.start');
+                }
                 $this->response = $request_handler->execute(function () use ($callable): ResponseInterface {
                     return $this->toResponse($this->execute($callable));
                 }, $this->container->get(ServerRequestInterface::class));
                 if ($this->request_package) {
-                    $this->emitHook('app.end@' . str_replace('/', '.', $this->request_package));
+                    $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.end');
                 }
             } else {
                 $this->response = (new ResponseFactory())->createResponse(404);
