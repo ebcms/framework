@@ -82,7 +82,10 @@ class App
             $this->emitHook('app.init');
             $class_name = $this->reflectRequestClass();
             $this->emitHook('app.start');
-            if ($class_name) {
+            if (
+                $class_name &&
+                $this->container->has($class_name)
+            ) {
                 $callable = [$this->container->get($class_name), 'handle'];
                 if ($this->request_package) {
                     $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.start');
@@ -96,6 +99,7 @@ class App
             } else {
                 $this->response = (new ResponseFactory())->createResponse(404);
             }
+
             $this->emitHook('app.end');
         } catch (\Throwable $th) {
             $this->response = (new ResponseFactory())->createResponse(500);
