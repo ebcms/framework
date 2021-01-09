@@ -24,6 +24,7 @@ use ReflectionClass;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
+use Throwable;
 
 /**
  * @property Container $container
@@ -81,28 +82,33 @@ class App
             $this->emitHook('app.init');
             $class_name = $this->reflectRequestClass();
             $this->emitHook('app.start');
+
             if (
                 $class_name &&
                 $this->container->has($class_name)
             ) {
                 $callable = [$this->container->get($class_name), 'handle'];
-                if ($this->request_package) {
-                    $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.start');
-                }
-                $this->response = $request_handler->execute(function () use ($callable): ResponseInterface {
-                    return $this->toResponse($this->execute($callable));
-                }, $this->container->get(ServerRequestInterface::class));
-                if ($this->request_package) {
-                    $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.end');
-                }
             } else {
-                $this->response = (new ResponseFactory())->createResponse(404);
+                $callable = function (): ResponseInterface {
+                    return (new ResponseFactory())->createResponse(404);
+                };
+            }
+
+            if ($this->request_package) {
+                $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.start');
+            }
+
+            $this->response = $request_handler->execute(function () use ($callable): ResponseInterface {
+                return $this->toResponse($this->execute($callable));
+            }, $this->container->get(ServerRequestInterface::class));
+
+            if ($this->request_package) {
+                $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.end');
             }
 
             $this->emitHook('app.end');
-        } catch (\Throwable $th) {
+        } catch (Throwable $th) {
             $this->response = (new ResponseFactory())->createResponse(500);
-            $this->response->getBody()->write($th->getMessage() . ' in ' . $th->getFile() . ':' . $th->getLine());
             $this->emitHook('app.exception', $th);
             ob_clean();
         }
@@ -293,11 +299,10 @@ class App
                 continue;
             }
 
-            $class = $param->getClass();
-            if ($class !== null) {
-                if ($container->has($class->getName())) {
-                    $result = $container->get($class->getName());
-                    $class_name = $class->getName();
+            if ($param->hasType()) {
+                $class_name = $param->getType()->getName();
+                if ($container->has($class_name)) {
+                    $result = $container->get($class_name);
                     if ($result instanceof $class_name) {
                         $res[] = $result;
                         continue;
