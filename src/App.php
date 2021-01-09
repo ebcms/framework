@@ -77,7 +77,6 @@ class App
             throw new ErrorException($errstr . ' on line ' . $errline . ' in file ' . $errfile, $errno);
         });
 
-
         try {
             $this->emitHook('app.init');
             $class_name = $this->reflectRequestClass();
@@ -368,25 +367,7 @@ class App
                         ];
                     }
                 }
-                $loader = new ClassLoader();
-                foreach (glob($this->app_path . '/plugin/*/plugin.json') as $value) {
-                    $dir = dirname($value);
-                    $name = pathinfo(dirname($value), PATHINFO_FILENAME);
-                    if (
-                        file_exists($this->app_path . '/config/plugin/' . $name . '/install.lock') &&
-                        !file_exists($this->app_path . '/config/plugin/' . $name . '/disabled.lock')
-                    ) {
-                        $packages['plugin/' . $name] = [
-                            'dir' => $dir,
-                        ];
-                        $loader->addPsr4(str_replace(
-                            ['-'],
-                            '',
-                            ucwords('App\\Plugin\\' . $name . '\\', '\\-')
-                        ), $dir . '/src/library/');
-                    }
-                }
-                $loader->register();
+                $this->emitHook('app.packages', $packages);
                 $cache->set('packages_cache', $packages);
             }
         }
