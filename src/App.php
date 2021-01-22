@@ -399,6 +399,26 @@ class App
         return $this->response;
     }
 
+    public function getLogger(): LoggerInterface
+    {
+        return $this->container->get(LoggerInterface::class);
+    }
+
+    public function getCache(): CacheInterface
+    {
+        return $this->container->get(CacheInterface::class);
+    }
+
+    public function getConfig(): Config
+    {
+        return $this->container->get(Config::class);
+    }
+
+    public function getRouter(): Router
+    {
+        return $this->container->get(Router::class);
+    }
+
     public static function getInstance(): App
     {
         static $instance;
