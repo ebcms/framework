@@ -97,7 +97,7 @@ class Config
         return $res;
     }
 
-    private function getValue($data = [], $path, $default)
+    private function getValue($data, $path, $default)
     {
         $key = array_shift($path);
         if (!$path) {
