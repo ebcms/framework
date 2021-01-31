@@ -57,28 +57,14 @@ class App
         }
         $this->app_path = $app_path;
 
-        $this->container->set(ServerRequestInterface::class, function (): ServerRequestInterface {
-            return $this->container->get(ServerRequestFactory::class)->createServerRequestFromGlobals();
-        });
-        $this->container->set(ResponseFactoryInterface::class, function (): ResponseFactoryInterface {
-            return $this->container->get(ResponseFactory::class);
-        });
-        $this->container->set(CacheInterface::class, function (): CacheInterface {
-            return $this->container->get(SimpleCacheNullAdapter::class);
-        });
-        $this->container->set(LoggerInterface::class, function (): LoggerInterface {
-            return $this->container->get(NullLogger::class);
-        });
-
-        $request_handler = (function (): RequestHandler {
-            return $this->container->get(RequestHandler::class);
-        })();
-
         set_error_handler(function ($errno, $errstr, $errfile, $errline) {
             throw new ErrorException($errstr . ' on line ' . $errline . ' in file ' . $errfile, $errno);
         });
 
         try {
+
+            $this->reg();
+
             $this->emitHook('app.init');
             $class_name = $this->reflectRequestClass();
             $this->emitHook('app.start');
@@ -98,7 +84,7 @@ class App
                 $this->emitHook('app.' . str_replace('/', '.', $this->request_package) . '.start');
             }
 
-            $this->response = $request_handler->execute(function () use ($callable): ResponseInterface {
+            $this->response = $this->getRequestHandler()->execute(function () use ($callable): ResponseInterface {
                 return $this->toResponse($this->execute($callable));
             }, $this->container->get(ServerRequestInterface::class));
 
@@ -115,6 +101,42 @@ class App
 
         $this->response = $this->response->withHeader('X-Powered-By', 'EBCMS');
         (new ResponseEmitter)->emit($this->response);
+    }
+
+    private function reg()
+    {
+        $alias = [];
+        $alias_file = $this->getAppPath() . '/config/alias.php';
+        if (file_exists($alias_file)) {
+            $alias = (array)include $alias_file;
+        }
+
+        $alias = array_merge([
+            CacheInterface::class => SimpleCacheNullAdapter::class,
+            LoggerInterface::class => NullLogger::class,
+        ], $alias, [
+            ServerRequestInterface::class => function (): ServerRequestInterface {
+                return $this->container->get(ServerRequestFactory::class)->createServerRequestFromGlobals();
+            },
+            ResponseFactoryInterface::class => ResponseFactory::class,
+        ]);
+
+        foreach ($alias as $key => $value) {
+            if (is_string($key)) {
+                if (is_callable($value)) {
+                    $this->container->set($key, $value);
+                } elseif (is_string($value)) {
+                    $this->container->set($key, function () use ($value) {
+                        return $this->container->get($value);
+                    });
+                }
+            }
+        }
+    }
+
+    private function getRequestHandler(): RequestHandler
+    {
+        return $this->container->get(RequestHandler::class);
     }
 
     private function reflectRequestClass(): ?string
@@ -169,14 +191,11 @@ class App
                 });
 
                 if ($route_info[3]) {
-                    $request_handler = (function (): RequestHandler {
-                        return $this->container->get(RequestHandler::class);
-                    })();
                     foreach ($route_info[3] as $middleware) {
                         if (is_string($middleware)) {
-                            $request_handler->lazyMiddleware($middleware);
+                            $this->getRequestHandler()->lazyMiddleware($middleware);
                         } elseif ($middleware instanceof MiddlewareInterface) {
-                            $request_handler->middleware($middleware);
+                            $this->getRequestHandler()->middleware($middleware);
                         }
                     }
                 }
