@@ -123,13 +123,15 @@ class App
 
         foreach ($alias as $key => $value) {
             if (is_string($key)) {
-                if (is_callable($value)) {
-                    $this->container->set($key, $value);
-                } elseif (is_string($value)) {
-                    $this->container->set($key, function () use ($value) {
-                        return $this->container->get($value);
-                    });
+                if (!is_array($value)) {
+                    $value = [$value];
                 }
+                if (is_string($value[0])) {
+                    $value[0] = function () use ($value) {
+                        return $this->container->get($value[0]);
+                    };
+                }
+                $this->container->set($key, ...$value);
             }
         }
     }
