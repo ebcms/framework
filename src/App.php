@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
@@ -153,9 +154,29 @@ class App
             $schema = 'http';
         }
 
-        $route_info = (function (): Router {
+        $router = (function (): Router {
             return $this->container->get(Router::class);
-        })()->getDispatcher()->dispatch(
+        })();
+
+        $router->getBuilder()->addCreater(function (array &$router) {
+            if (is_string($router['handler'])) {
+                $tmp_arr = array_values(array_filter(explode('\\', strtolower(preg_replace_callback(
+                    '/([\w])([A-Z]{1})/',
+                    function ($match) {
+                        return $match[1] . '-' . lcfirst($match[2]);
+                    },
+                    $router['handler']
+                )))));
+                if ($tmp_arr[0] !== 'app' || $tmp_arr[3] !== 'http' || !isset($tmp_arr[4])) {
+                    return;
+                }
+                unset($tmp_arr[0]);
+                unset($tmp_arr[3]);
+                $router['name'] = '/' . implode('/', $tmp_arr);
+            }
+        });
+
+        $route_info = $router->getDispatcher()->dispatch(
             $_SERVER['REQUEST_METHOD'],
             $schema . '://' . $_SERVER['HTTP_HOST'] . $this->filterUrlPath()
         );
