@@ -17,7 +17,6 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
@@ -107,7 +106,7 @@ class App
     private function reg()
     {
         $alias = [];
-        $alias_file = $this->getAppPath() . '/config/alias.php';
+        $alias_file = $this->getAppPath() . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'alias.php';
         if (file_exists($alias_file)) {
             $alias = (array)include $alias_file;
         }
@@ -282,7 +281,7 @@ class App
         if (substr($url_path, -1) == '/') {
             $url_path .= 'index';
         }
-        $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
+        $script_name = '/' . implode('/', array_filter(explode(DIRECTORY_SEPARATOR, $_SERVER['SCRIPT_NAME'])));
         if (strpos($url_path, $script_name) === 0) {
             $prefix = $script_name;
         } else {
@@ -296,7 +295,7 @@ class App
         $tmp_path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $url_path = implode('/', array_filter(explode('/', $tmp_path)));
         $url_path = $url_path ? '/' . $url_path : '';
-        $script_name = '/' . implode('/', array_filter(explode('/', $_SERVER['SCRIPT_NAME'])));
+        $script_name = '/' . implode('/', array_filter(explode(DIRECTORY_SEPARATOR, $_SERVER['SCRIPT_NAME'])));
         if ($url_path === $script_name) {
             return $url_path . '/';
         }
@@ -404,13 +403,13 @@ class App
             if (!$packages = $cache->get('packages_cache')) {
                 $vendor_dir = dirname(dirname((new ReflectionClass(ClassLoader::class))->getFileName()));
                 $packages = [];
-                $installed = json_decode(file_get_contents($vendor_dir . '/composer/installed.json'), true);
+                $installed = json_decode(file_get_contents($vendor_dir . DIRECTORY_SEPARATOR . 'composer' . DIRECTORY_SEPARATOR . 'installed.json'), true);
                 foreach ($installed as $package) {
                     if (
                         $package['type'] == 'ebcms-app'
                     ) {
                         $packages[$package['name']] = [
-                            'dir' => $vendor_dir . '/' . $package['name'],
+                            'dir' => $vendor_dir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $package['name']),
                         ];
                     }
                 }

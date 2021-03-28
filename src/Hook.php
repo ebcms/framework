@@ -45,12 +45,12 @@ class Hook
     {
         if (!isset($this->hooks[$name])) {
             $hooks = new SplPriorityQueue;
-            foreach (glob($this->app_path . '/hook/' . $name . '/*.php') as $file) {
+            foreach (glob($this->app_path . DIRECTORY_SEPARATOR . 'hook' . DIRECTORY_SEPARATOR . $name . DIRECTORY_SEPARATOR . '*.php') as $file) {
                 preg_match('/^(.*)(#([0-9]+))*$/Ui', pathinfo($file, PATHINFO_FILENAME), $matches);
                 $hooks->insert($file, isset($matches[3]) ? $matches[3] : 50);
             }
             foreach ($this->apps as $value) {
-                foreach (glob($value['dir'] . '/src/hook/' . $name . '/*.php') as $file) {
+                foreach (glob($value['dir'] . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'hook' . DIRECTORY_SEPARATOR . $name . DIRECTORY_SEPARATOR . '*.php') as $file) {
                     preg_match('/^(.*)(#([0-9]+))*$/Ui', pathinfo($file, PATHINFO_FILENAME), $matches);
                     $hooks->insert($file, isset($matches[3]) ? $matches[3] : 50);
                 }

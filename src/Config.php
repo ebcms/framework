@@ -64,11 +64,13 @@ class Config
             throw new InvalidArgumentException('App [' . $package_name . '] unavailable!');
         }
         $args = [];
-        if (file_exists($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php')) {
-            $args[] = $this->requireFile($this->packages[$package_name]['dir'] . '/src/config/' . $key . '.php');
+        $config_file = $this->packages[$package_name]['dir'] . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . $key . '.php';
+        if (file_exists($config_file)) {
+            $args[] = $this->requireFile($config_file);
         }
-        if (file_exists($this->app_path . '/config/' . $package_name . '/' . $key . '.php')) {
-            $args[] = $this->requireFile($this->app_path . '/config/' . $package_name . '/' . $key . '.php');
+        $config_file = $this->app_path . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $package_name) . DIRECTORY_SEPARATOR . $key . '.php';
+        if (file_exists($config_file)) {
+            $args[] = $this->requireFile($config_file);
         }
         if (isset($this->configs[$package_name][$key])) {
             $args[] = $this->configs[$package_name][$key];
@@ -128,7 +130,7 @@ class Config
     {
         static $loader;
         if (!$loader) {
-            $loader = new class ()
+            $loader = new class()
             {
                 public function load(string $file)
                 {
