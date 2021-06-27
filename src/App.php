@@ -11,6 +11,7 @@ use Ebcms\ResponseFactory;
 use Ebcms\ServerRequestFactory;
 use ErrorException;
 use InvalidArgumentException;
+use Mobile_Detect;
 use OutOfBoundsException;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -26,19 +27,31 @@ use ReflectionFunctionAbstract;
 use ReflectionMethod;
 use Throwable;
 
-/**
- * @property Container $container
- * @property string $app_path
- * @property string $request_package
- * @property string $request_class
- * @property ?ResponseInterface $response
- */
 class App
 {
+    /**
+     * @var Container
+     */
     private $container;
+
+    /**
+     * @var string
+     */
     private $app_path;
+
+    /**
+     * @var string
+     */
     private $request_package;
+
+    /**
+     * @var string
+     */
     private $request_class;
+
+    /**
+     * @var ?ResponseInterface
+     */
     private $response;
 
     private function __construct(Container $container)
@@ -108,12 +121,74 @@ class App
         $alias = [];
         $alias_file = $this->getAppPath() . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'alias.php';
         if (file_exists($alias_file)) {
-            $alias = (array)include $alias_file;
+            $alias = (array) include $alias_file;
         }
 
         $alias = array_merge([
             CacheInterface::class => SimpleCacheNullAdapter::class,
             LoggerInterface::class => NullLogger::class,
+            Template::class => function (): Template {
+                return App::getInstance()->execute(function (
+                    CacheInterface $cache,
+                    Container $container,
+                    Hook $hook
+                ) {
+                    $template = new Template($cache);
+                    $template->extend('/\{cache\s*(.*)\s*\}([\s\S]*)\{\/cache\}/Ui', function ($matchs) {
+                        $params = array_filter(explode(',', trim($matchs[1])));
+                        if (!isset($params[0])) {
+                            $params[0] = 3600;
+                        }
+                        if (!isset($params[1])) {
+                            $params[1] = '\'' . md5($matchs[2]) . '\'';
+                        }
+                        return '<?php echo (function(){' .
+                            'return \Ebcms\App::getInstance()->execute(function (
+                                \Psr\SimpleCache\CacheInterface $cache,
+                                \Ebcms\Template $template
+                            ): string {
+                                list($ttl, $id, $tpl, $param)=[' . implode(',', $params) . ',\'' . base64_encode($matchs[2]) . '\'' . ', get_defined_vars()];
+                                if (null === $res = $cache->get(\'tpl_extend_cache_\' . $id)) {
+                                    $res = $template->renderFromString(base64_decode($tpl), $param, $id);
+                                    $cache->set(\'tpl_extend_cache_\' . $id, $res, $ttl);
+                                }
+                                return $res;
+                            });'
+                            . '})();?>';
+                    });
+
+                    $template->assign([
+                        'app' => App::getInstance(),
+                        'container' => $container,
+                        'input' => $container->get(RequestFilter::class),
+                        'config' => $container->get(Config::class),
+                        'router' => $container->get(Router::class),
+                        'hook' => $container->get(Hook::class),
+                        'session' => $container->get(Session::class),
+                    ]);
+
+                    /**
+                     * @var Mobile_Detect
+                     */
+                    $mobile_detect = $container->get(Mobile_Detect::class);
+
+                    foreach (App::getInstance()->getPackages() as $key => $value) {
+                        $template->addPath($key, $value['dir'] . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'template/default');
+                        $template->addPath($key, App::getInstance()->getAppPath() . DIRECTORY_SEPARATOR . 'template/default' . DIRECTORY_SEPARATOR . $key, 9);
+                        if ($mobile_detect->isMobile()) {
+                            $template->addPath($key, $value['dir'] . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'template/mobile', 10);
+                            $template->addPath($key, App::getInstance()->getAppPath() . DIRECTORY_SEPARATOR . 'template/mobile' . DIRECTORY_SEPARATOR . $key, 19);
+                        }
+                        if ($mobile_detect->isTablet()) {
+                            $template->addPath($key, $value['dir'] . DIRECTORY_SEPARATOR . 'src' . DIRECTORY_SEPARATOR . 'template/tablet', 20);
+                            $template->addPath($key, App::getInstance()->getAppPath() . DIRECTORY_SEPARATOR . 'template/tablet' . DIRECTORY_SEPARATOR . $key, 29);
+                        }
+                    }
+
+                    $hook->emit('template.instance', $template);
+                    return $template;
+                });
+            },
         ], $alias, [
             ServerRequestInterface::class => function (): ServerRequestInterface {
                 return $this->container->get(ServerRequestFactory::class)->createServerRequestFromGlobals();
