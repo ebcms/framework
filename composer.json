@@ -2,7 +2,7 @@
     "name": "ebcms/framework",
     "description": "ebcms framework",
     "type": "library",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "ebcms",
@@ -32,6 +32,7 @@
         "ebcms/psr17": "^1.0",
         "ebcms/router": "^1.0",
         "ebcms/request": "^1.0",
+        "ebcms/session": "^1.0",
         "mobiledetect/mobiledetectlib": "^2.8",
         "ebcms/template": "^1.0"
     }
