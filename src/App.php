@@ -479,7 +479,7 @@ class App
                 $vendor_dir = dirname(dirname((new ReflectionClass(ClassLoader::class))->getFileName()));
                 $packages = [];
                 $installed = json_decode(file_get_contents($vendor_dir . DIRECTORY_SEPARATOR . 'composer' . DIRECTORY_SEPARATOR . 'installed.json'), true);
-                foreach ($installed as $package) {
+                foreach ($installed['packages'] as $package) {
                     if (
                         $package['type'] == 'ebcms-app'
                     ) {
