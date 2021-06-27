@@ -160,7 +160,7 @@ class App
                     $template->assign([
                         'app' => App::getInstance(),
                         'container' => $container,
-                        'input' => $container->get(RequestFilter::class),
+                        'request' => $container->get(Request::class),
                         'config' => $container->get(Config::class),
                         'router' => $container->get(Router::class),
                         'hook' => $container->get(Hook::class),
