@@ -31,6 +31,7 @@
         "ebcms/psr16-null": "^1.0",
         "ebcms/psr17": "^1.0",
         "ebcms/router": "^1.0",
+        "ebcms/request": "^1.0",
         "mobiledetect/mobiledetectlib": "^2.8",
         "ebcms/template": "^1.0"
     }
