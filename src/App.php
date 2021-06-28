@@ -25,6 +25,7 @@ use ReflectionClass;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
+use ReflectionParameter;
 use Throwable;
 
 class App
@@ -404,45 +405,41 @@ class App
 
     private function reflectArguments(
         ReflectionFunctionAbstract $method,
-        ContainerInterface $container,
         array $args = []
     ): array {
-        $res = [];
-        foreach ($method->getParameters() as $param) {
+        return array_map(function (ReflectionParameter $param) use ($method, $args) {
             $name = $param->getName();
             if (array_key_exists($name, $args)) {
-                $res[] = $args[$name];
-                continue;
+                return $args[$name];
             }
 
-            if ($param->hasType()) {
-                $class_name = $param->getType()->getName();
-                if ($container->has($class_name)) {
-                    $result = $container->get($class_name);
-                    if ($result instanceof $class_name) {
-                        $res[] = $result;
-                        continue;
+            $type = $param->getType();
+            if ($type !== null && !$type->isBuiltin()) {
+                if ($this->container->has($type->getName())) {
+                    $result = $this->container->get($type->getName());
+                    $type_name = $type->getName();
+                    if ($result instanceof $type_name) {
+                        return $result;
                     }
                 }
             }
 
             if ($param->isDefaultValueAvailable()) {
-                $res[] = $param->getDefaultValue();
-                continue;
+                return $param->getDefaultValue();
             }
 
             if ($param->isOptional()) {
-                continue;
+                return;
             }
 
             throw new OutOfBoundsException(sprintf(
-                'Unable to resolve a value for parameter (%s $%s) at %s',
-                $param->getType(),
+                'Unable to resolve a value for parameter (%s $%s) in [%s] method:[%s]',
+                $param->getType()->getName(),
                 $param->getName(),
-                $method->getFileName()
+                $method->getFileName(),
+                $method->getName(),
             ));
-        }
-        return $res;
+        }, $method->getParameters());
     }
 
     public function execute($callable, array $default_args = [])
@@ -454,14 +451,14 @@ class App
             if (is_string($callable[0])) {
                 $callable[0] = $this->container->get($callable[0]);
             }
-            $args = $this->reflectArguments(new ReflectionMethod(...$callable), $this->container, $default_args);
+            $args = $this->reflectArguments(new ReflectionMethod(...$callable), $default_args);
         } elseif ($callable instanceof Closure) {
-            $args = $this->reflectArguments(new ReflectionFunction($callable), $this->container, $default_args);
+            $args = $this->reflectArguments(new ReflectionFunction($callable), $default_args);
         } else {
             if (strpos($callable, '::')) {
-                $args = $this->reflectArguments(new ReflectionMethod($callable), $this->container, $default_args);
+                $args = $this->reflectArguments(new ReflectionMethod($callable), $default_args);
             } else {
-                $args = $this->reflectArguments(new ReflectionFunction($callable), $this->container, $default_args);
+                $args = $this->reflectArguments(new ReflectionFunction($callable), $default_args);
             }
         }
         return call_user_func($callable, ...$args);
