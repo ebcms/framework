@@ -33,6 +33,10 @@
         "ebcms/router": "^1.0",
         "ebcms/request": "^1.0",
         "ebcms/session": "^1.0",
+        "ebcms/database": "^2.0",
+        "ebcms/captcha": "^1.0",
+        "ebcms/pagination": "^1.0",
+        "ebcms/form-builder": "^1.0",
         "mobiledetect/mobiledetectlib": "^2.8",
         "ebcms/template": "^1.0"
     }
